@@ -8,7 +8,8 @@
 #Requires -Modules SQLPS
 
 # Location of Bookmark JSON
-$BookmarkPath = 'C:\path\to\your\file.json'
+#$BookmarkPath = 'C:\path\to\your\file.json'
+$BookmarkPath = 'C:\Users\Robert\OneDrive\Documents\Scratch\bookmarks-2018-12-20.json'
 
 # Location and name of Microsoft SQL Database
 $ServerInstance = 'localhost\SQLExpress'
@@ -42,13 +43,16 @@ Function Write-Database
             [string]$Folder = (Get-StringWithEscape -String $Bookmark.Folder)
             [string]$Title = (Get-StringWithEscape -String $Bookmark.Title)
             [string]$URI = (Get-StringWithEscape -String $Bookmark.URI)
+            [string]$RawContent = (Get-StringWithEscape -String $Bookmark.Content)
 
             # Create query.
             $query = "
                 INSERT INTO dbo.FirefoxBookmarks
                 VALUES('$($Folder)',
                 '$($Title)',
-                '$($URI)')
+                '$($URI)',
+                '$($Bookmark.Status_Code)',
+                '$($RawContent)')
             "
 
             # Attempt to execute query. Write out query to host if fails. Useful for debugging.
@@ -78,12 +82,25 @@ Function Get-Bookmark
                 1 # Typecode 1 means this is a URI.
                 {
                     $URI = New-Object PSObject
-                    $URI | Add-Member -MemberType NoteProperty -Name Type -Value $($Child.Type)
-                    $URI | Add-Member -MemberType NoteProperty -Name Typecode -Value $($Child.Typecode)
                     $URI | Add-Member -MemberType NoteProperty -Name Folder -Value $($ContainerTitle)
                     $URI | Add-Member -MemberType NoteProperty -Name Title -Value $($Child.Title)
                     $URI | Add-Member -MemberType NoteProperty -Name URI -Value $($Child.URI)
-                    $URIList = $URIList + $URI
+
+                    Try 
+                    { 
+                        Write-Verbose -Message "Trying $($Child.URI)"
+                        [array]$Site = Invoke-WebRequest -URI $Child.URI
+                        $URI | Add-Member -MemberType NoteProperty -Name Status_Code -Value $($Site.StatusCode)
+                        $URI | Add-Member -MemberType NoteProperty -Name Content -Value $($Site.RawContent)
+                    }
+                    Catch
+                    {
+                        $URI | Add-Member -MemberType NoteProperty -Name Status_Code -Value $($_.Exception.Response.StatusCode.Value__)
+                        $URI | Add-Member -MemberType NoteProperty -Name Content -Value ''
+                    }
+                    
+                    
+                        $URIList = $URIList + $URI
                 }
                 2 # Typecode 2 means this is a container of URI.
                 {
@@ -114,7 +131,7 @@ try
 }
 catch
 {
-    Invoke-SQLCmd -ServerInstance $ServerInstance -Database $Database -Query "BEGIN TRANSACTION GO CREATE TABLE dbo.FirefoxBookmarks (Folder nvarchar(MAX) NULL, Title nvarchar(MAX) NULL, URI nvarchar(MAX) NULL) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY] COMMIT BEGIN TRANSACTION GO ALTER TABLE dbo.FirefoxBookmarks SET (LOCK_ESCALATION = TABLE) COMMIT"
+    Invoke-SQLCmd -ServerInstance $ServerInstance -Database $Database -Query "BEGIN TRANSACTION GO CREATE TABLE dbo.FirefoxBookmarks (Folder nvarchar(MAX) NULL, Title nvarchar(MAX) NULL, URI nvarchar(MAX) NULL, STATUS_CODE nvarchar(10) NULL, CONTENT nvarchar(MAX) NULL) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY] COMMIT BEGIN TRANSACTION GO ALTER TABLE dbo.FirefoxBookmarks SET (LOCK_ESCALATION = TABLE) COMMIT"
 }
 
 # Create bookmark list.
