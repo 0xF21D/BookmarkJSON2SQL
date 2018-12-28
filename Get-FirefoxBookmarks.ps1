@@ -8,8 +8,7 @@
 #Requires -Modules SQLPS
 
 # Location of Bookmark JSON
-#$BookmarkPath = 'C:\path\to\your\file.json'
-$BookmarkPath = 'C:\Users\Robert\OneDrive\Documents\Scratch\bookmarks-2018-12-20.json'
+$BookmarkPath = 'C:\path\to\your\file.json'
 
 # Location and name of Microsoft SQL Database
 $ServerInstance = 'localhost\SQLExpress'
@@ -24,6 +23,10 @@ Function Get-StringWithEscape
     {
         # Convert to double apostrophe.
         [string]$EscapedString = $String.replace('''','''''')
+        $EscapedString = $EscapedString.replace('"','""')
+        $EscapedString = $EscapedString.replace('%','%%')
+        $EscapedString = $EscapedString.replace('_','__')
+
     }
     End{
     Return $EscapedString
@@ -119,7 +122,7 @@ Function Get-Bookmark
 # Pull in JSON and convert it to PS Object
 $BookmarkFile = Get-Content -path $BookmarkPath
 $Bookmarks = convertfrom-json -InputObject $BookmarkFile
-[array]$BookmarkList = $null
+#[array]$BookmarkList = $null
 
 # Set the title of the first container. 
 $ContainerTitle = 'Root'
@@ -135,7 +138,7 @@ catch
 }
 
 # Create bookmark list.
-$BookmarkList = $BookmarkList + (Get-Bookmark -BookmarkObject $Bookmarks -ContainerTitle $ContainerTitle)
+#$BookmarkList = $BookmarkList + (Get-Bookmark -BookmarkObject $Bookmarks -ContainerTitle $ContainerTitle)
 
 # Write the bookmark list to the database.
 Write-Database -BookmarkList $BookmarkList -ServerInstance $ServerInstance -Database $Database
